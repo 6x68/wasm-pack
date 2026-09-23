@@ -12,7 +12,7 @@ env:
   RELEASE_DIR: artifacts
   GITHUB_REF: '${{ github.ref }}'
   WINDOWS_AMD64_TARGET: x86_64-pc-windows-msvc
-  WINDOWS_AARCH64_TARGET: aarch64-pc-windows-msvc
+  WINDOWS_ARM64_TARGET: aarch64-pc-windows-msvc
   MACOS_AMD64_TARGET: x86_64-apple-darwin
   MACOS_ARM64_TARGET: aarch64-apple-darwin
   LINUX_AMD64_TARGET: x86_64-unknown-linux-musl
@@ -156,7 +156,7 @@ jobs:
       - name: Download Windows arm64 tarball
         uses: actions/download-artifact@v4.1.7
         with:
-          name: ${{ env.WINDOWS_AARCH64_TARGET }}
+          name: ${{ env.WINDOWS_ARM64_TARGET }}
 
       - name: Download ARM64 MacOS tarball
         uses: actions/download-artifact@v4.1.7
@@ -204,9 +204,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_AARCH64_TARGET }}.tar.gz
+          asset_path: ./wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_ARM64_TARGET }}.tar.gz
           asset_content_type: application/gzip
-          asset_name: wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_AARCH64_TARGET }}.tar.gz
+          asset_name: wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_ARM64_TARGET }}.tar.gz
 
       - name: Release Windows init exe
         uses: actions/upload-release-asset@v1
