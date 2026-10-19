@@ -11,7 +11,8 @@ env:
   RELEASE_BIN: wasm-pack
   RELEASE_DIR: artifacts
   GITHUB_REF: '${{ github.ref }}'
-  WINDOWS_TARGET: x86_64-pc-windows-msvc
+  WINDOWS_AMD64_TARGET: x86_64-pc-windows-msvc
+  WINDOWS_ARM64_TARGET: aarch64-pc-windows-msvc
   MACOS_AMD64_TARGET: x86_64-apple-darwin
   MACOS_ARM64_TARGET: aarch64-apple-darwin
   LINUX_AMD64_TARGET: x86_64-unknown-linux-musl
@@ -40,6 +41,11 @@ jobs:
             os: macos-latest
             rust: stable
           - target: x86_64-pc-windows-msvc
+            arch: amd64
+            os: windows-latest
+            rust: stable
+          - target: aarch64-pc-windows-msvc
+            arch: arm64
             os: windows-latest
             rust: stable
 
@@ -97,9 +103,9 @@ jobs:
         shell: bash
         run: |
           cp ./target/${{ matrix.target }}/release/${{ env.RELEASE_BIN }}.exe ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}/${{ env.RELEASE_BIN }}.exe
-          cp ./target/${{ matrix.target }}/release/${{ env.RELEASE_BIN }}.exe wasm-pack-init.exe
+          cp ./target/${{ matrix.target }}/release/${{ env.RELEASE_BIN }}.exe wasm-pack-init-${{ matrix.arch }}.exe
           mv ${{ env.RELEASE_ADDS }} ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ matrix.target }}
-          mv wasm-pack-init.exe ${{ env.RELEASE_DIR }}
+          mv wasm-pack-init-${{ matrix.arch }}.exe ${{ env.RELEASE_DIR }}
 
       - name: Create tarball
         shell: bash
@@ -144,15 +150,21 @@ jobs:
         with:
           name: ${{ env.LINUX_ARM64_TARGET }}
 
-      - name: Download Windows tarball
+      - name: Download Windows amd64 tarball
         uses: actions/download-artifact@v4.1.7
         with:
-          name: ${{ env.WINDOWS_TARGET }}
+          name: ${{ env.WINDOWS_AMD64_TARGET }}
+
+      - name: Download Windows arm64 tarball
+        uses: actions/download-artifact@v4.1.7
+        with:
+          name: ${{ env.WINDOWS_ARM64_TARGET }}
 
       - name: Download ARM64 MacOS tarball
         uses: actions/download-artifact@v4.1.7
         with:
           name: ${{ env.MACOS_ARM64_TARGET }}
+
       - name: Download AMD64 MacOS tarball
         uses: actions/download-artifact@v4.1.7
         with:
@@ -178,25 +190,46 @@ jobs:
           asset_content_type: application/gzip
           asset_name: wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_ARM64_TARGET }}.tar.gz
 
-      - name: Release Windows tarball
+      - name: Release Windows amd64 tarball
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_TARGET }}.tar.gz
+          asset_path: ./wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_AMD64_TARGET }}.tar.gz
           asset_content_type: application/gzip
-          asset_name: wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_TARGET }}.tar.gz
+          asset_name: wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_AMD64_TARGET }}.tar.gz
 
-      - name: Release Windows init exe
+      - name: Release Windows arm64 tarball
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./wasm-pack-init.exe
+          asset_path: ./wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_ARM64_TARGET }}.tar.gz
+          asset_content_type: application/gzip
+          asset_name: wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_ARM64_TARGET }}.tar.gz
+
+      - name: Release Windows init amd64 exe
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./wasm-pack-init-amd64.exe
           asset_content_type: application/vnd.microsoft.portable-executable
+          # don't change the file name for the 0 people that install via some script that hardcodes this file name
           asset_name: wasm-pack-init.exe
+
+      - name: Release Windows init ARM64 exe
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./wasm-pack-init-arm64.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+          asset_name: wasm-pack-init-arm64.exe
 
       - name: Release AMD64 MacOS tarball
         uses: actions/upload-release-asset@v1
