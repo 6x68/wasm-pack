@@ -131,6 +131,22 @@ jobs:
           echo "using version tag ${GITHUB_REF:10}"
           echo ::set-output name=version::"${GITHUB_REF:10}"
 
+      - uses: actions/checkout@v4
+
+      - name: Read release notes
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=${GITHUB_REF_NAME#v}
+          heading=$(grep -m1 -E "^## [^ ]+ ${version//./\\.}\$" CHANGELOG.md)
+          awk -v h="$heading" '$0 == h {f = 1; next} f && /^## /{exit} f' CHANGELOG.md \
+            | sed '/./,$!d' > "$RUNNER_TEMP/notes.md"
+          test -s "$RUNNER_TEMP/notes.md"
+          emoji=$(cut -d' ' -f2 <<< "$heading")
+          echo "name=$emoji $GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+
+      # Published on approval, after which it's immutable.
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -138,7 +154,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
-          release_name: ${{ steps.get_version.outputs.VERSION }}
+          release_name: ${{ steps.notes.outputs.name }}
+          body_path: ${{ runner.temp }}/notes.md
+          draft: true
 
       - name: Download Linux amd64 tarball
         uses: actions/download-artifact@v4.1.7
@@ -250,6 +268,39 @@ jobs:
           asset_content_type: application/gzip
           asset_name: wasm-pack-${{ steps.get_version.outputs.VERSION }}-${{ env.MACOS_ARM64_TARGET }}.tar.gz
 
+      # Releases are immutable once published, so check the draft has every
+      # asset before it goes for approval.
+      - name: Check release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for target in $LINUX_AMD64_TARGET $LINUX_ARM64_TARGET $WINDOWS_AMD64_TARGET \
+              $WINDOWS_ARM64_TARGET $MACOS_AMD64_TARGET $MACOS_ARM64_TARGET; do
+            echo "wasm-pack-$GITHUB_REF_NAME-$target.tar.gz"
+          done > expected
+          printf '%s\n' wasm-pack-init.exe wasm-pack-init-arm64.exe >> expected
+          sort -o expected expected
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft,assets \
+            --jq 'if .isDraft then .assets[].name else error("not a draft") end' | sort > uploaded
+          diff expected uploaded
+
+  # The approval publishes the GitHub release first, since the npm package
+  # downloads its binary from the release, whose assets aren't public while
+  # it's a draft.
+  finalize:
+    name: Publish GitHub Release
+    environment:
+      name: publish
+    needs: release
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   cargo-publish:
     name: Publish to crates.io
@@ -259,7 +310,7 @@ jobs:
       id-token: write
     if: github.repository == 'wasm-bindgen/wasm-pack'
     needs:
-      - release
+      - finalize
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -272,7 +323,7 @@ jobs:
 
   npm-publish:
     name: Publish npm package
-    needs: release
+    needs: finalize
     # Requires the NPM_TOKEN repository secret.
     if: ${{ github.repository == 'wasm-bindgen/wasm-pack' }}
     permissions:
